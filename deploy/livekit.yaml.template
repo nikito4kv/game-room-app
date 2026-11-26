@@ -1,0 +1,68 @@
+# Шаблон конфигурации LiveKit v1.13.7. up.sh подставляет из deploy/.env домен TURN
+# и порт TURN/UDP и пишет livekit.yaml. Ключи сверены с config-sample.yaml и
+# pkg/config/config.go этой версии; конфиг LiveKit разбирает строго, и опечатка в
+# ключе не даст ему стартовать. Ключ API задаётся переменной LIVEKIT_KEYS в
+# compose.yaml, здесь секретов нет.
+port: 7880
+# Сигналинг (7880) и метрики (6789) слушают только локальную петлю: снаружи к
+# сигналингу ходят через Caddy, сайт и up.sh — напрямую по 127.0.0.1. Медиа и TURN
+# эта настройка не трогает, у них свои порты (rtc.*, turn.*).
+bind_addresses:
+  - 127.0.0.1
+rtc:
+  # Запасной путь, когда UDP режут: ICE по TCP.
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 60000
+  # Машина за NAT облака: публичный адрес узнаём через STUN при старте.
+  # С закреплённым (reserved) IP эту зависимость от STUN Google можно убрать:
+  #   use_external_ip: false
+  #   node_ip: <reserved IP>
+  use_external_ip: true
+  # Больше истории пакетов для повторной отправки (NACK): ключевой кадр
+  # демонстрации 1440p60 — сотни пакетов, а по умолчанию хранится 500.
+  packet_buffer_size_video: 1000
+turn:
+  enabled: true
+  domain: ${TURN_DOMAIN}
+  # TLS снимает Caddy на 443 (layer4) и отдаёт сюда TCP без шифрования.
+  tls_port: 5349
+  external_tls: true
+  # Caddy передаёт адрес клиента заголовком PROXY v2. Без него TURN видит
+  # 127.0.0.1 и отдаёт его клиенту в XOR-MAPPED-ADDRESS, а Firefox такой ответ
+  # отбрасывает и через 443 не подключается. Работает только в паре с
+  # proxy_protocol v2 в Caddyfile: соединение без заголовка LiveKit закрывает.
+  proxy_protocol: true
+  # Заголовку верим только от Caddy на этой же машине.
+  proxy_protocol_trusted_cidrs:
+    - 127.0.0.0/8
+  # 3478 по умолчанию; 443 — по желанию (deploy/README.md, «TURN/UDP на 443»).
+  udp_port: ${TURN_UDP_PORT}
+room:
+  # Комнаты создаёт только сайт (/api/rooms, /api/token). Иначе старый токен
+  # после перезапуска LiveKit «воскрешал» бы пустую комнату без metadata. Токен
+  # участника права roomCreate не даёт, поэтому запрет действует.
+  auto_create: false
+  # Те же значения сайт передаёт при создании и восстановлении комнаты
+  # (src/lib/server/roomSync.ts, LIVEKIT_ROOM_OPTIONS); здесь они для комнат,
+  # созданных без них. max_participants — страховка к проверке на сайте
+  # (MAX_PARTICIPANTS): вход в обход сайта со старым токеном тоже упрётся в 10.
+  empty_timeout: 120
+  departure_timeout: 90
+  max_participants: 10
+# Индикатор «говорит» (кольцо на аватаре): окно замера 200 мс вместо 400 —
+# кольцо загорается примерно вдвое быстрее. smooth_intervals сглаживает только
+# подъём громкости; тихое окно гасит кольцо сразу.
+audio:
+  update_interval: 200
+  smooth_intervals: 2
+webhook:
+  api_key: gameroom
+  urls:
+    - http://127.0.0.1:3000/api/livekit-webhook
+# Метрики Prometheus на 127.0.0.1:6789/metrics (наружу закрыто bind_addresses).
+# По livekit_participant_total up.sh узнаёт, есть ли кто-то в комнатах.
+prometheus:
+  port: 6789
+logging:
+  level: info

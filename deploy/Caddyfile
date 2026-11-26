@@ -1,0 +1,78 @@
+# Один порт 443 на всё:
+#   {$APP_DOMAIN}    → сайт (127.0.0.1:3000)
+#   {$RTC_DOMAIN}    → сигналинг LiveKit (127.0.0.1:7880), WebSocket
+#   {$TURN_DOMAIN}   → TURN LiveKit: TLS снимает Caddy (layer4), дальше TCP на 5349
+# Сертификаты Let's Encrypt Caddy получает и продлевает сам (нужен открытый 80).
+{
+	servers :443 {
+		# Без HTTP/3: UDP 443 закрыт в фаерволе (а по желанию отдан TURN/UDP, см.
+		# README), так что объявление h3 в Alt-Svc только зазывало браузеры в мёртвый QUIC.
+		protocols h1 h2
+		listener_wrappers {
+			layer4 {
+				@turn tls sni {$TURN_DOMAIN}
+				route @turn {
+					tls
+					proxy {
+						# Заголовок PROXY v2 сообщает LiveKit настоящий адрес клиента:
+						# иначе TURN видит 127.0.0.1, и Firefox через 443 не подключается.
+						# Работает только в паре с turn.proxy_protocol в livekit.yaml.template.
+						proxy_protocol v2
+						upstream tcp/127.0.0.1:5349
+					}
+				}
+			}
+			tls
+		}
+	}
+}
+
+# Заголовки безопасности, общие для всех имён. То, что зависит от самого сайта
+# (Content-Security-Policy, Permissions-Policy), ставит Next — next.config.ts, они
+# едут вместе с кодом. Ни один заголовок не задаётся в двух местах. defer — значения
+# Caddy заменяют то, что прислал бэкенд.
+(security_headers) {
+	header {
+		defer
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+}
+
+{$APP_DOMAIN} {
+	import security_headers
+	encode zstd gzip
+	# Внутренний API сайта — только по локальной петле. Снаружи
+	# его нет (сайт и сам проверяет x-internal-token). respond идёт раньше reverse_proxy.
+	@internal path /api/internal /api/internal/*
+	respond @internal 404
+	reverse_proxy 127.0.0.1:3000 {
+		# Rate limiting доверяет x-real-ip (см. src/lib/ratelimit.ts) — ставим его
+		# сами, затирая то, что прислал клиент.
+		header_up X-Real-IP {remote_host}
+	}
+}
+
+# Запасные имена ведут на основной адрес (старая ссылка club. и www.).
+www.{$APP_DOMAIN}, club.{$APP_DOMAIN} {
+	import security_headers
+	redir https://{$APP_DOMAIN}{uri} permanent
+}
+
+{$RTC_DOMAIN} {
+	import security_headers
+	reverse_proxy 127.0.0.1:7880 {
+		# Если конфиг перечитают на ходу (caddy reload), веб-сокеты сигналинга
+		# не рвутся сразу, а доживают до 5 минут. up.sh вместо этого пересоздаёт
+		# контейнер, когда в комнатах никого нет.
+		stream_close_delay 5m
+	}
+}
+
+# Блок нужен только ради сертификата: TLS-соединения с этим именем перехватывает
+# layer4 выше, а HTTP Caddy перенаправляет на HTTPS — до respond не доходит ничего.
+{$TURN_DOMAIN} {
+	respond 404
+}

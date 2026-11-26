@@ -1,0 +1,28 @@
+# LiveKit для локальной разработки и e2e. Ключи совпадают с env.example.
+# Вебхуки идут в redis-rest.mjs, а он раздаёт их всем запущенным дев-серверам.
+port: 7880
+bind_addresses:
+  - 127.0.0.1
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50300
+  use_external_ip: false
+  node_ip: 127.0.0.1
+keys:
+  devkey: secret
+# Как на проде (deploy/livekit.yaml.template): комнаты создаёт только сайт,
+# быстрый индикатор «говорит».
+room:
+  auto_create: false
+  empty_timeout: 120
+  departure_timeout: 90
+audio:
+  update_interval: 200
+  smooth_intervals: 2
+webhook:
+  api_key: devkey
+  urls:
+    - http://127.0.0.1:8079/webhook
+logging:
+  level: info

@@ -1,0 +1,11 @@
+[
+  { "name": "Авто (по умолчанию)", "settings": { "gateMode": "auto" } },
+  { "name": "Авто, без своей автогромкости", "settings": { "gateMode": "auto", "autoGain": false } },
+  { "name": "Авто, чувствительность +5 дБ", "settings": { "gateMode": "auto", "sensitivityDb": 5 } },
+  { "name": "Авто, чувствительность −5 дБ", "settings": { "gateMode": "auto", "sensitivityDb": -5 } },
+  { "name": "Авто, упреждение 10 мс (вместо 30)", "settings": { "gateMode": "auto" }, "tuning": { "lookaheadFrames": 1 } },
+  { "name": "Ручной −45 дБ + VAD", "settings": { "gateMode": "manual", "manualThresholdDb": -45, "manualUseVad": true } },
+  { "name": "Ручной −45 дБ, без VAD", "settings": { "gateMode": "manual", "manualThresholdDb": -45, "manualUseVad": false } },
+  { "name": "Как было: порог −50/−60, без VAD, 90 мс", "settings": { "gateMode": "manual", "manualThresholdDb": -50, "manualUseVad": false, "autoGain": false }, "tuning": { "lookaheadFrames": 0, "gate": { "hysteresisDb": 10, "holdMs": 90 } } },
+  { "name": "Без порога (только шумодав)", "settings": { "gateMode": "off", "autoGain": false } }
+]

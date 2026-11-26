@@ -1,0 +1,83 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js (+ отдельные папки сборки параллельных дев-серверов, NEXT_DIST_DIR)
+/.next/
+/.next-*/
+/out/
+
+# локальный стенд: бинарники LiveKit/Redis и данные (scripts/dev-stack)
+/.dev-stack/
+
+# обработка голоса: worklet + wasm RNNoise (собирает scripts/build-audio.mjs перед dev/build)
+/public/audio/
+
+# экспорт аналитики (локальные снимки, в git не коммитятся)
+/analytics-export/
+
+# production
+/build
+
+# installed agent skills (local, not committed)
+/.agents/
+/.claude/skills/
+/skills-lock.json
+/graphify-out/
+
+# misc
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+*.pem
+
+# editors / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# logs & caches
+*.log
+logs/
+.cache/
+.tmp/
+tmp/
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+.superpowers/
+
+# своя машина: секреты и сгенерированный конфиг LiveKit
+/deploy/.env
+/deploy/livekit.yaml
+
+# видео-ролики Remotion (черновики и готовые файлы, в git не коммитятся)
+/video-out/

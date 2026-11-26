@@ -1,0 +1,153 @@
+# Game Room на своём сервере: сайт + LiveKit + Redis + Caddy на одной машине.
+# Запуск и обновление — ./up.sh: он рендерит livekit.yaml из шаблона и не трогает
+# сервер, пока в комнатах люди. Секреты и адреса — в deploy/.env (образец: .env.example).
+#
+# Сайт, LiveKit и Caddy живут в host-сети: LiveKit нужен диапазон UDP-портов
+# 50000–60000, пробрасывать его через docker-proxy медленно и бессмысленно.
+# Redis и его HTTP-обёртка — в своей сети, наружу торчит только 127.0.0.1:8079.
+#
+# Версии образов закреплены (и в caddy.Dockerfile, и в ../Dockerfile): случайная
+# пересборка не притащит непроверенную версию. Обновлять — правкой тега.
+#
+# Приоритет процессора — cpu_shares. В cgroup v2 Docker пересчитывает его в
+# cpu.weight: 8192 → 313, 4096 → 157, 512 → 20; у контейнеров без cpu_shares и у
+# шагов сборки образа — 100. Когда процессор занят (сборка сайта, всплеск в Next),
+# первыми его получают LiveKit и Caddy — через Caddy идёт TURN/TLS.
+
+name: game-room
+
+# Логи: драйвер local сжимает и ротирует — не больше 5 файлов по 10 МБ на контейнер.
+x-logging: &logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  app:
+    build:
+      context: ..
+      args:
+        # Версия сборки для /api/internal/health (их ставит up.sh).
+        GIT_COMMIT: ${GIT_COMMIT:-}
+        BUILT_AT: ${BUILT_AT:-}
+        NEXT_PUBLIC_LIVEKIT_URL: wss://${RTC_DOMAIN}
+        NEXT_PUBLIC_APP_URL: https://${APP_DOMAIN}
+        NEXT_PUBLIC_POSTHOG_KEY: ${NEXT_PUBLIC_POSTHOG_KEY:-}
+        NEXT_PUBLIC_POSTHOG_HOST: ${NEXT_PUBLIC_POSTHOG_HOST:-}
+        NEXT_PUBLIC_SENTRY_DSN: ${NEXT_PUBLIC_SENTRY_DSN:-}
+    network_mode: host
+    restart: unless-stopped
+    logging: *logging
+    cpu_shares: 512
+    # Утечка памяти в сайте не должна задеть LiveKit: при нехватке OOM-киллер
+    # сработает внутри этого контейнера.
+    mem_limit: 1g
+    environment:
+      # В host-сети слушаем только локальную петлю: снаружи сайт доступен через Caddy.
+      HOSTNAME: 127.0.0.1
+      # Куча Node заметно меньше лимита контейнера: сборщик мусора успевает раньше OOM.
+      NODE_OPTIONS: --max-old-space-size=512
+      LIVEKIT_API_KEY: gameroom
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?}
+      # Серверный API ходит к LiveKit напрямую по локальной петле, мимо Caddy.
+      LIVEKIT_URL: ws://127.0.0.1:7880
+      NEXT_PUBLIC_LIVEKIT_URL: wss://${RTC_DOMAIN}
+      NEXT_PUBLIC_APP_URL: https://${APP_DOMAIN}
+      # Код говорит с Redis по REST-протоколу Upstash; redis-http его изображает.
+      UPSTASH_REDIS_REST_URL: http://127.0.0.1:8079
+      UPSTASH_REDIS_REST_TOKEN: ${SRH_TOKEN:?}
+      POSTHOG_KEY: ${POSTHOG_KEY:-}
+      # Окружение в Sentry; пусто — NODE_ENV образа, то есть production.
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+      # Пропуск во внутренний API /api/internal/* (по желанию).
+      # Пусто — внутренний API выключен (503), сайт работает как обычно.
+      INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:-}
+    # Healthcheck сайта — в ../Dockerfile, он едет вместе с образом.
+    depends_on:
+      - livekit
+      - redis-http
+
+  livekit:
+    image: livekit/livekit-server:v1.13.7
+    command: --config /etc/livekit.yaml
+    network_mode: host
+    restart: unless-stopped
+    logging: *logging
+    cpu_shares: 8192
+    environment:
+      # Имя ключа не секрет (оно же в livekit.yaml для вебхука), секрет — только тут.
+      LIVEKIT_KEYS: "gameroom: ${LIVEKIT_API_SECRET:?}"
+      # up.sh кладёт сюда хэш livekit.yaml, и compose пересоздаёт контейнер, только
+      # когда конфиг правда поменялся. Иначе после git pull контейнер видел бы старый
+      # файл: одиночный смонтированный файл при замене не обновляется (moby#15793).
+      CONFIG_SHA: ${LIVEKIT_CONFIG_SHA:-}
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    healthcheck:
+      # «/» отвечает OK, пока узел жив (его статистика обновлялась меньше 4 с назад).
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:7880/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  redis:
+    image: redis:7.4.11-alpine
+    # Журнал AOF (fsync раз в секунду) + снимок раз в 5 минут при изменениях: после
+    # падения теряется не больше секунды. Включение на живом сервере — README,
+    # «Включение журнала Redis без потери данных».
+    command: redis-server --save 300 1 --appendonly yes --appendfsync everysec
+    restart: unless-stopped
+    logging: *logging
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  redis-http:
+    image: hiett/serverless-redis-http:0.0.10
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      SRH_MODE: env
+      SRH_TOKEN: ${SRH_TOKEN:?}
+      SRH_CONNECTION_STRING: redis://redis:6379
+    ports:
+      - "127.0.0.1:8079:80"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  caddy:
+    build:
+      context: .
+      dockerfile: caddy.Dockerfile
+    network_mode: host
+    restart: unless-stopped
+    logging: *logging
+    cpu_shares: 4096
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN:?}
+      RTC_DOMAIN: ${RTC_DOMAIN:?}
+      TURN_DOMAIN: ${TURN_DOMAIN:?}
+      # Хэш Caddyfile от up.sh — как CONFIG_SHA у livekit.
+      CONFIG_SHA: ${CADDY_CONFIG_SHA:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    healthcheck:
+      # Админка Caddy (только 127.0.0.1:2019) отвечает, пока процесс жив.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  redis-data:
+  caddy-data:
+  caddy-config:

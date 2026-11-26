@@ -1,0 +1,161 @@
+@import "tailwindcss";
+@import "../../design-system/tokens.css";
+
+/* ===========================================================================
+   ДИЗАЙН-СИСТЕМА «ЭФИР»
+   ---------------------------------------------------------------------------
+   Токены — design-system/tokens.css (--gr-*), правила — DESIGN_SYSTEM.md,
+   примитивы — src/components/ui/.
+
+   Мост: семантические токены → утилиты Tailwind. `inline` — утилита ссылается
+   прямо на var(--gr-…), поэтому смена темы (data-theme) перекрашивает классы
+   без пересборки:
+     цвета    bg-canvas · bg-raised · bg-overlay · bg-sunken · bg-wash-1..3
+              text-ink · text-ink-2 · text-ink-3 · text-inverse · border-line
+              signal · alert · caution · crown · link · focus (+ -ink, -wash, on-…)
+     шрифты   font-brand (Unbounded) · font-body (Onest) · font-code (системный моно)
+     кегли    text-micro · caption · label · body · body-lg · title · heading · display · hero
+     углы     rounded-key · item · control · card · panel
+     тени     shadow-raised · shadow-float · shadow-dialog
+     кривые   ease-swift (вход/отклик) · ease-glide (перемещение) · ease-drawer
+   =========================================================================== */
+@theme inline {
+  --color-video: var(--gr-video);
+  --color-sunken: var(--gr-sunken);
+  --color-canvas: var(--gr-canvas);
+  --color-raised: var(--gr-raised);
+  --color-overlay: var(--gr-overlay);
+  --color-scrim: var(--gr-scrim);
+  --color-wash-1: var(--gr-wash-1);
+  --color-wash-2: var(--gr-wash-2);
+  --color-wash-3: var(--gr-wash-3);
+  --color-line: var(--gr-line);
+  --color-line-strong: var(--gr-line-strong);
+  --color-line-control: var(--gr-line-control);
+
+  --color-ink: var(--gr-ink);
+  --color-ink-2: var(--gr-ink-2);
+  --color-ink-3: var(--gr-ink-3);
+  --color-ink-faint: var(--gr-ink-faint);
+  --color-inverse: var(--gr-inverse);
+
+  --color-signal: var(--gr-signal);
+  --color-signal-ink: var(--gr-signal-ink);
+  --color-on-signal: var(--gr-on-signal);
+  --color-signal-wash: var(--gr-signal-wash);
+  --color-alert: var(--gr-alert);
+  --color-alert-ink: var(--gr-alert-ink);
+  --color-on-alert: var(--gr-on-alert);
+  --color-alert-wash: var(--gr-alert-wash);
+  --color-caution: var(--gr-caution);
+  --color-caution-ink: var(--gr-caution-ink);
+  --color-on-caution: var(--gr-on-caution);
+  --color-caution-wash: var(--gr-caution-wash);
+  --color-crown: var(--gr-crown);
+  --color-link: var(--gr-link);
+  --color-focus: var(--gr-focus);
+
+  /* font-sans — ещё и шрифт документа по умолчанию (база Tailwind на <html>). */
+  --font-sans: var(--gr-font-body);
+  --font-brand: var(--gr-font-brand);
+  --font-body: var(--gr-font-body);
+  --font-code: var(--gr-font-code);
+
+  --text-micro: var(--gr-text-micro);
+  --text-micro--line-height: var(--gr-leading-micro);
+  --text-caption: var(--gr-text-caption);
+  --text-caption--line-height: var(--gr-leading-caption);
+  --text-label: var(--gr-text-label);
+  --text-label--line-height: var(--gr-leading-label);
+  --text-body: var(--gr-text-body);
+  --text-body--line-height: var(--gr-leading-body);
+  --text-body-lg: var(--gr-text-body-lg);
+  --text-body-lg--line-height: var(--gr-leading-body-lg);
+  --text-title: var(--gr-text-title);
+  --text-title--line-height: var(--gr-leading-title);
+  --text-title--font-weight: 600;
+  --text-heading: var(--gr-text-heading);
+  --text-heading--line-height: var(--gr-leading-heading);
+  --text-heading--font-weight: 600;
+  --text-heading--letter-spacing: -0.01em;
+  --text-display: var(--gr-text-display);
+  --text-display--line-height: var(--gr-leading-display);
+  --text-display--font-weight: 600;
+  --text-display--letter-spacing: -0.02em;
+  --text-hero: var(--gr-text-hero);
+  --text-hero--line-height: var(--gr-leading-hero);
+  --text-hero--font-weight: 700;
+  --text-hero--letter-spacing: -0.03em;
+
+  --radius-key: var(--gr-radius-key);
+  --radius-item: var(--gr-radius-item);
+  --radius-control: var(--gr-radius-control);
+  --radius-card: var(--gr-radius-card);
+  --radius-panel: var(--gr-radius-panel);
+
+  --shadow-raised: var(--gr-shadow-raised);
+  --shadow-float: var(--gr-shadow-float);
+  --shadow-dialog: var(--gr-shadow-dialog);
+
+  --ease-swift: var(--gr-ease-out);
+  --ease-glide: var(--gr-ease-in-out);
+  --ease-drawer: var(--gr-ease-drawer);
+}
+
+/* База. Документ — фон и полоса прокрутки страницы; всё остальное — внутри
+   [data-ui] (корень экрана — компонент UiRoot). Слой base — любые классы
+   компонентов перекрывают эти правила. */
+@layer base {
+  html {
+    /* Полоса прокрутки страницы (лендинг, /rooms) — как у остальных полос. */
+    scrollbar-width: thin;
+    scrollbar-color: var(--gr-line-strong) transparent;
+  }
+  body {
+    /* Фон документа — canvas: его видно при «резиновой» прокрутке на тачпаде и
+       телефоне. */
+    background: var(--gr-canvas);
+    /* Кернинг и лигатуры у всего текста. */
+    text-rendering: optimizeLegibility;
+  }
+  [data-ui] {
+    color-scheme: var(--gr-color-scheme);
+    color: var(--gr-ink);
+    font-family: var(--gr-font-body);
+    font-size: var(--gr-text-body);
+    line-height: var(--gr-leading-body);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Единое кольцо фокуса с клавиатуры для всего интерфейса. */
+  [data-ui] :focus-visible {
+    outline: 2px solid var(--gr-focus);
+    outline-offset: 2px;
+  }
+  [data-ui] ::placeholder {
+    color: var(--gr-ink-3);
+    opacity: 1;
+  }
+  [data-ui] ::selection {
+    background-color: color-mix(in srgb, var(--gr-focus) 32%, transparent);
+    color: var(--gr-ink);
+  }
+  :where([data-ui], [data-ui] *) {
+    scrollbar-width: thin;
+    scrollbar-color: var(--gr-line-strong) transparent;
+  }
+}
+
+/* Меньше движения (prefers-reduced-motion): анимации и переходы — мгновенная
+   смена состояния, бесконечные (спиннер, скелет) не крутятся. Вне слоёв и с
+   !important — страховка поверх любых классов компонентов. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

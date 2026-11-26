@@ -1,0 +1,19 @@
+node_modules
+.next
+# папки сборки параллельных дев-серверов (NEXT_DIST_DIR) и локальный стенд с бинарниками
+.next-*
+.dev-stack
+.git
+.env*
+!.env.example
+deploy
+docs
+coverage
+analytics-export
+graphify-out
+video-out
+.claude
+.agents
+*.tsbuildinfo
+*.md
+!README.md
